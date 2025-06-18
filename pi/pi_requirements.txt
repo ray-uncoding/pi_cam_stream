@@ -1,0 +1,5 @@
+flask
+opencv-python
+qrcode
+Pillow
+picamera2

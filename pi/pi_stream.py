@@ -4,8 +4,26 @@ import cv2
 import socket
 import qrcode
 from PIL import Image
+import os
+import subprocess
 
 app = Flask(__name__)
+
+def release_camera():
+    try:
+        result = subprocess.run(['lsof', '/dev/video0'], capture_output=True, text=True)
+        if result.stdout:
+            for line in result.stdout.splitlines():
+                if '/dev/video0' in line:
+                    pid = line.split()[1]  # 提取進程 ID
+                    os.system(f'sudo kill -9 {pid}')
+                    print(f"釋放相機資源，已終止進程 {pid}")
+        else:
+            print("相機資源未被佔用，準備啟用相機。")
+    except Exception as e:
+        print(f"檢查相機資源時出錯: {e}")
+
+release_camera()
 
 # 初始化 Picamera2（使用 CSI 攝影機）
 picam2 = Picamera2()
@@ -15,11 +33,13 @@ picam2.start()
 # 串流影像
 def generate_frames():
     while True:
+        # 修改影像處理邏輯，解決顏色問題
         frame = picam2.capture_array()
-        # Convert the frame from BGR to RGB
-        frame_rgb = cv2.rotate(frame, cv2.ROTATE_180)  # 移除 BGR 到 RGB 的轉換
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        frame_rgb = cv2.rotate(frame_rgb, cv2.ROTATE_180)
         ret, buffer = cv2.imencode('.jpg', frame_rgb)
         if not ret:
+            print("影像編碼失敗，跳過該幀。")
             continue
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
